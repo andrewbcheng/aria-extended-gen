@@ -28,18 +28,6 @@ def decode_one(model, idxs: torch.Tensor, input_pos: torch.Tensor):
 
     return logits
 
-@torch.no_grad()
-def decode_tokens(tokenizer: Tokenizer, seq: torch.Tensor):
-    decoded_results = [tokenizer.decode(s) for s in seq.tolist()]
-    decoded_results = [
-        (
-            res[: res.index(tokenizer.eos_tok) + 1]
-            if tokenizer.eos_tok in res
-            else res
-        )
-        for res in decoded_results
-    ]
-    return decoded_results
 
 def update_seq_ids_(
     seq: torch.Tensor,
@@ -54,7 +42,7 @@ def update_seq_ids_(
     # Insert dim and pad toks
     for _idx in range(seq.shape[0]):
         if eos_tok_seen[_idx] == True:
-            next_token_ids[_idx] = tokenizer.tok_to_id[tokenizer.pad_tok] # do not add anymore if ended (even if generated for)
+            next_token_ids[_idx] = tokenizer.tok_to_id[tokenizer.pad_tok]
         elif (
             force_end
             and idx >= max_len - 130
@@ -70,18 +58,7 @@ def update_seq_ids_(
         elif next_token_ids[_idx] == tokenizer.tok_to_id[tokenizer.eos_tok]:
             eos_tok_seen[_idx] = True
 
-    # selected_column = seq[:, 2]
-    # Original Tensor:
-    # tensor([[ 1,  2,  3,  4,  5],
-    #     [ 6,  7,  8,  9, 10],
-    #     [11, 12, 13, 14, 15],
-    #     [16, 17, 18, 19, 20]])
-    # Selected Column (index 2):
-    # tensor([ 3,  8, 13, 18])
-    # seq.shape[0] -> 4 (size of first dimension)
-    # seq.shape[1] -> 5 (size of second dimension)
-
-    seq[:, idx] = next_token_ids # where the id is actually inserted (column)
+    seq[:, idx] = next_token_ids
 
 
 # TODO: Add CFG back into this when working
@@ -190,7 +167,17 @@ def greedy_sample(
         if all(seen_eos is True for seen_eos in eos_tok_seen):
             break
 
-    return seq
+    decoded_results = [tokenizer.decode(s) for s in seq.tolist()]
+    decoded_results = [
+        (
+            res[: res.index(tokenizer.eos_tok) + 1]
+            if tokenizer.eos_tok in res
+            else res
+        )
+        for res in decoded_results
+    ]
+
+    return decoded_results
 
 
 def sample_top_p(probs, p):

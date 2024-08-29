@@ -6,6 +6,7 @@ import re
 import sys
 import copy
 
+
 def _parse_sample_args():
     argp = argparse.ArgumentParser(prog="aria sample")
     argp.add_argument("-m", help="name of model config file")
@@ -99,7 +100,7 @@ def sample(args):
     from aria.model import ModelConfig
     from aria.config import load_model_config, load_config
     from aria.tokenizer import AbsTokenizer, SeparatedAbsTokenizer
-    from aria.sample import greedy_sample, decode_tokens, get_pt_prompt, get_inst_prompt
+    from aria.sample import greedy_sample, get_pt_prompt, get_inst_prompt
     from aria.data.midi import MidiDict
     from aria.data.datasets import _noise_midi_dict
     from aria.utils import midi_to_audio, _load_weight
@@ -160,156 +161,122 @@ def sample(args):
     max_new_tokens = args.l
 
     # Load and format prompts and metadata
-    paths_to_midis = args.p # [tests/test_data/1, tests/test_data/2, tests/test_data/3, ...]
-    form = args.form # could be 'ABA', 'ABC', BAC'
-
-    all_midi_dicts = {} # will have all of the midi dicts
-    paths_to_midis_index = 0
-    for idx in range(len(form)):
-        if paths_to_midis_index == len(paths_to_midis):
-            break
-
-        midi_dict = MidiDict.from_midi(mid_path=paths_to_midis[paths_to_midis_index])
-
-        for k, v in manual_metadata.items():
-            midi_dict.metadata[k] = v
-
-        print(f"Extracted metadata: {midi_dict.metadata}")
-        print(
-            f"Instruments: {set([MidiDict.get_program_to_instrument()[msg['data']] for msg in midi_dict.instrument_msgs])}"
-        )
-
-        # we want all_midi_dicts['A'] = midi_dict_from_1
-        if form[idx] not in all_midi_dicts.keys():
-            all_midi_dicts[form[idx]] = midi_dict
-            paths_to_midis_index += 1
-
-    print(f"Number of MIDIs: {len(paths_to_midis)}")
-
-    # structure
-    print(f"Form to follow: {form}")
-
-    results = [] # where to put all of the generations
-    token_labels = [[] for _ in range(num_variations)]
-    generated = {} # holds each generation's tensor
-    for idx_section, section in enumerate(form):
+    midi_dict_paths = args.p # [tests/test_data/1.mid, tests/test_data/2.mid]
+    form = args.form # 'ABA'
+    
+    midi_dicts = {}
+    path_idx = 0
+    for section in form:
+        if section not in midi_dicts.keys():
+            midi_dict = MidiDict.from_midi(mid_path=midi_dict_paths[path_idx])
+            
+            for k, v in manual_metadata.items():
+                midi_dict.metadata[k] = v
+                
+            print(f"Extracted metadata: {midi_dict.metadata}")
+            print(
+                f"Instruments: {set([MidiDict.get_program_to_instrument()[msg['data']] for msg in midi_dict.instrument_msgs])}"
+            )
+            
+            midi_dicts[section] = midi_dict
+            path_idx += 1
+        
+    print(f"Number of MidiDicts: {len(midi_dicts.keys())}")
+    print(f"Form to follow: {form}")    
+    
+    final_results = [] # [[A1_tokens, ...], [B1_tokens, ...], [A1_tokens, ...]]  
+    generated = {} # {A : [A1_tokens, ...], B : [B1_tokens, ...]}
+    
+    for section in form:
         if args.pt:
             if args.noise:
                 print("Noising not supported with pretrained model")
-
+                
             prompt_seq = get_pt_prompt(
                 tokenizer=tokenizer,
-                midi_dict=all_midi_dicts[section],
+                midi_dict=midi_dicts[section],
                 truncate_len=truncate_len,
             )
         else:
             prompt_seq = get_inst_prompt(
                 tokenizer=tokenizer,
-                midi_dict=all_midi_dicts[section],
+                midi_dict=midi_dicts[section],
                 truncate_len=truncate_len,
                 noise=args.noise,
             )
-
+            
         prompts = [prompt_seq for _ in range(num_variations)]
         if len(prompt_seq) + args.l > model_config.max_seq_len:
             print(
                 "WARNING: Required context exceeds max_seq_len supported by model"
             )
-
         print(prompt_seq)
-
-        # pick which generation to use
-        if section in generated: # already generated for
-            raw_results = copy.deepcopy(generated[section])
+        
+        # select which generation to use
+        if section in generated:
+            results = copy.deepcopy(generated[section])
         else:
-            raw_results = greedy_sample(
+            results = greedy_sample(
                 model=model,
                 tokenizer=tokenizer,
                 prompts=prompts,
                 max_new_tokens=max_new_tokens,
                 force_end=True,
-                # cfg_gamma=args.cfg,
                 temperature=args.temp,
                 top_p=args.top_p,
                 compile=args.compile,
             )
-            generated[section] = raw_results
-        decoded_results = decode_tokens(tokenizer, raw_results)
-
-        # removal of unwanted tokens
-        print(f"Before manipulation: {decoded_results}")
-        for idx_decoded, decoded in enumerate(decoded_results): # for each decoded variant
-            print(f"Section {section} before (var {idx_decoded}): {decoded}")
-            print(f"Section Index: {idx_section}")
-            print(f"Length of form: {len(form)}")
-            if idx_section == 0: # first section - remove eos
-                decoded_results[idx_decoded] = [note for note in decoded if note != tokenizer.eos_tok]
-            elif idx_section > 0 and idx_section < len(form) - 1: # middle section - remove metadata and certain tags and eos
-                decoded = [note for note in decoded if note[0] != 'prefix']
-                decoded_results[idx_decoded] = [note for note in decoded if note != '<S>' and note != '<INST>' and note != '</INST>' and note != '<E>']
-            elif idx_section == len(form) - 1: # end section - remove metadata and certain tags
-                print(f"Last section")
-                decoded = [note for note in decoded if note[0] != 'prefix']
-                print(f"Removed metadata: {decoded}")
-                decoded_results[idx_decoded] = [note for note in decoded if note != '<S>' and note != '<INST>' and note != '</INST>']
-                # print(f"Removed other tags: {decoded_results[idx_decoded]}")
-
-            if decoded_results[idx_decoded][-1][0] == "piano": # ended with piano token
-                decoded_results[idx_decoded] = decoded_results[idx_decoded][:-1]
-            elif decoded_results[idx_decoded][-1][0] == "onset": # ended with onset token
-                decoded_results[idx_decoded] = decoded_results[idx_decoded][:-2]
-
-            print(f"Section {section} after (var {idx_decoded}): {decoded_results[idx_decoded]}")
-
-        # add to labels the current section for each token
-        for idx_decoded, decoded in enumerate(decoded_results):
-            token_labels[idx_decoded] += [section for _ in range(len(decoded))]
-
-        # onset changes
-        if idx_section != 0: # at least one generation in results
-            last_end_time = [0 for _ in range(len(results))] # last ending time for a note in each variant
-            for idx_variation, variation in enumerate(results):
-                for idx_token in range(len(variation) - 1):
-                    if type(variation[idx_token]) is tuple and variation[idx_token][0] == "onset":
-                        cur_end_time = variation[idx_token][1] + variation[idx_token + 1][1] # onset + dur
-                        last_end_time[idx_variation] = max(last_end_time[idx_variation], cur_end_time)
-            print(f"Last end times: {last_end_time}")
-
-            for idx_decoded, decoded in enumerate(decoded_results):
-                print(f"Decoded before onset: {decoded}")
-                for idx_token in range(len(decoded)):
-                    if type(decoded[idx_token]) is tuple and decoded[idx_token][0] == "onset":
-                        new_onset = last_end_time[idx_decoded] + decoded[idx_token][1]
-                        decoded_results[idx_decoded][idx_token] = ("onset", new_onset) # replace with new onset
-                print(f"Decoded after onset: {decoded_results[idx_decoded]}")
+            generated[section] = results # [A1_tokens, ...]
+        final_results.append(results) # [[A1_tokens, ...], [B1_tokens, ...], [A1_tokens, ...]]
+    
+    token_labels = [[] for _ in range(num_variations)] # [[# A1 + # B1 + # A1], ...]
+    for idx_section, section in enumerate(final_results): # [A1_tokens, ...]
+        if idx_section == 0: # grab original ending ticks
+            ending_ticks = [0 for _ in range(num_variations)] # [A1_ending_ticks, ...]
+            final_midi_dicts = [] # [A1_mididict + B1_mididict (tick-modified) + A1_mididict (tick-modified), ...]
+            
+            for idx_seq, seq in enumerate(section):
+                res_midi_dict = tokenizer.detokenize(seq) # A1_mididict
+                final_midi_dicts.append(res_midi_dict) # [A1_mididict, ...]
+                ending_ticks[idx_seq] = res_midi_dict.note_msgs[-1]["data"]["end"] + 2000
         
-        # concatenation
-        if not results: # empty list
-            for idx_variation, variation in enumerate(decoded_results): # decoded (next generation)
-                results.append(variation)
-        else: 
-            for idx_variation, variation in enumerate(results): # final decoded (previous generation)
-                results[idx_variation] += decoded_results[idx_variation]
-
-    print(f"Before detokenizing: {results}")
+        else: # modifying current and provide new ending ticks for next iteration
+            for idx_seq, seq in enumerate(section):
+                res_midi_dict = tokenizer.detokenize(seq) # B1_mididict
+                
+                for msg in res_midi_dict.note_msgs: # [A1_mididict + B1_mididict (tick-modified), ...]
+                    adjusted_note_msg = copy.deepcopy(msg)
+                    adjusted_note_msg["tick"] += ending_ticks[idx_seq]
+                    adjusted_note_msg["data"]["start"] += ending_ticks[idx_seq]
+                    adjusted_note_msg["data"]["end"] += ending_ticks[idx_seq]
+                    
+                    final_midi_dicts[idx_seq].note_msgs.append(adjusted_note_msg) 
+            
+            for idx_seq, seq in enumerate(final_midi_dicts): # ending tick of last note of B1_mididict (tick-modified)
+                ending_ticks[idx_seq] = seq.note_msgs[-1]["data"]["end"] + 2000
+                
+        # labels
+        for idx_seq, seq in enumerate(section):
+            start_idx = seq.index('<S>')
+            rm_metadata = seq[start_idx:]
+            note_tokens = [tok for tok in rm_metadata if type(tok) is tuple]
+            for _ in range(len(note_tokens)):
+                token_labels[idx_seq].append(form[idx_section])
 
     samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples")
     if os.path.isdir(samples_dir) is False:
         os.mkdir(samples_dir)
-
-    for idx, tokenized_seq_labels in enumerate(token_labels):
-        output_file = os.path.join(samples_dir, f"label_{idx + 1}.txt")
+            
+    for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
+        output_file = os.path.join(samples_dir, f"labels_{idx + 1}.txt")
         with open(output_file, 'w') as file:
-            for idx, token in enumerate(tokenized_seq_labels):
-                if not isinstance(token, str):
-                    token = str(token)
-                file.write(f"Token {idx + 1}: {token}\n")
-    
+            for tok in token_label:
+                file.write(tok)
+            
     print("Labels saved to samples/")
 
-    for idx, tokenized_seq in enumerate(results):
-        res_midi_dict = tokenizer.detokenize(tokenized_seq)
-        res_midi = res_midi_dict.to_midi()
+    for idx, combined_midi_dict in enumerate(final_midi_dicts):
+        res_midi = combined_midi_dict.to_midi()
         res_midi.save(f"samples/res_{idx + 1}.mid")
 
     print("Results saved to samples/")
