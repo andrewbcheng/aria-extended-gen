@@ -263,8 +263,14 @@ def sample(args):
             for _ in range(len(note_tokens)):
                 token_labels[idx_seq].append(form[idx_section])
 
-    samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples")
+    samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples_0")
     if os.path.isdir(samples_dir) is False:
+        os.mkdir(samples_dir)
+    else:
+        i = 0
+        while os.path.isdir(samples_dir):
+             i += 1
+             samples_dir = samples_dir[:8] + str(i)
         os.mkdir(samples_dir)
             
     for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
@@ -273,13 +279,13 @@ def sample(args):
             for tok in token_label:
                 file.write(tok)
             
-    print("Labels saved to samples/")
+    print(f"Labels saved to {samples_dir}")
 
     for idx, combined_midi_dict in enumerate(final_midi_dicts):
         res_midi = combined_midi_dict.to_midi()
         res_midi.save(f"samples/res_{idx + 1}.mid")
 
-    print("Results saved to samples/")
+    print(f"Results saved to {samples_dir}")
 
 
 def _parse_midi_dataset_args():
