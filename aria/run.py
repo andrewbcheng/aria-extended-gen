@@ -267,10 +267,10 @@ def sample(args):
     if os.path.isdir(samples_dir) is False:
         os.mkdir(samples_dir)
     else:
-        i = 0
+        sample_num = 0
         while os.path.isdir(samples_dir):
-             i += 1
-             samples_dir = samples_dir[:8] + str(i)
+            sample_num += 1
+            samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples_") + str(sample_num)
         os.mkdir(samples_dir)
             
     for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
