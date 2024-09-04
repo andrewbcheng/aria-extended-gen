@@ -8,4 +8,5 @@
 #SBATCH --cpus-per-gpu=10
 #SBATCH --partition=gpu
 
+cd ..
 aria sample -m large -c large-abs-inst.safetensors -p tests/test_data/bach.mid tests/test_data/arabseque.mid -var 10 -trunc 0 -l 1600 -temp 0.95 -form ABA 

@@ -274,7 +274,7 @@ def sample(args):
         os.mkdir(samples_dir)
             
     for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
-        output_file = os.path.join(samples_dir, f"labels_{idx + 1}.txt")
+        output_file = os.path.join(samples_dir, f"{idx + 1}_style.txt")
         with open(output_file, 'w') as file:
             for tok in token_label:
                 file.write(tok)
@@ -283,7 +283,7 @@ def sample(args):
 
     for idx, combined_midi_dict in enumerate(final_midi_dicts):
         res_midi = combined_midi_dict.to_midi()
-        res_midi.save(f"samples/res_{idx + 1}.mid")
+        res_midi.save(f"{samples_dir}/{idx + 1}_midi.mid")
 
     print(f"Results saved to {samples_dir}")
 
