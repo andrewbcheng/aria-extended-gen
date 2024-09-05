@@ -263,14 +263,14 @@ def sample(args):
             for _ in range(len(note_tokens)):
                 token_labels[idx_seq].append(form[idx_section])
 
-    samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples_0")
+    samples_dir = os.path.join(os.path.dirname(__file__), "..", "synth_data/samples_0")
     if os.path.isdir(samples_dir) is False:
         os.mkdir(samples_dir)
     else:
         sample_num = 0
         while os.path.isdir(samples_dir):
             sample_num += 1
-            samples_dir = os.path.join(os.path.dirname(__file__), "..", "samples_") + str(sample_num)
+            samples_dir = os.path.join(os.path.dirname(__file__), "..", "synth_data/samples_") + str(sample_num)
         os.mkdir(samples_dir)
             
     for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
