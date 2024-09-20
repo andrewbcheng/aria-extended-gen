@@ -259,7 +259,8 @@ def sample(args):
         for idx_seq, seq in enumerate(section):
             start_idx = seq.index('<S>')
             rm_metadata = seq[start_idx:]
-            note_tokens = [tok for tok in rm_metadata if type(tok) is tuple]
+            #note_tokens = [tok for tok in rm_metadata if type(tok) is tuple]
+            note_tokens = [tok for tok in rm_metadata if tok[0] in ['piano', 'onset', 'dur']] #count tokens correctly, ignore INST tokens
             for _ in range(len(note_tokens)):
                 token_labels[idx_seq].append(form[idx_section])
 
