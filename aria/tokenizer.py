@@ -40,6 +40,7 @@ class Tokenizer:
         self.pad_tok = "<P>"
         self.unk_tok = "<U>"
         self.dim_tok = "<D>"
+        #self.sec_tok = ["<A>", "<B>", "<C>", "<F>", "<G>", "<H>", "<A'>", "<B'>", "<C'>", "<F'>", "<G'>", "<H'>"]
 
         self.special_tokens = [
             self.bos_tok,
@@ -48,6 +49,8 @@ class Tokenizer:
             self.unk_tok,
             self.dim_tok,
         ]
+
+        #self.special_tokens += self.sec_tok
 
         # These must be implemented in child class (abstract params)
         self.vocab = ()
@@ -912,6 +915,7 @@ class AbsTokenizer(Tokenizer):
                         _src_dur_tok = note["dur"]
 
                         if _src_dur_tok is not None:
+                            print(f"Error:{_src_dur_tok[1]}")
                             tgt_dur = _quantize_time(
                                 round(_src_dur_tok[1] * tempo_aug)
                             )
@@ -1085,6 +1089,161 @@ class SeparatedAbsTokenizer(AbsTokenizer):
             res.append(sub_seq)
 
         return res
+    
+
+class SecTokenizer(AbsTokenizer):
+    def __init__(self, return_tensors: bool = False):
+        super().__init__(return_tensors)
+
+        self.name = "sec_tokenizer"
+        self.a_section_tok = "<A-SEC>"
+        self.b_section_tok = "<B-SEC>"
+        self.c_section_tok = "<C-SEC>"
+        self.d_section_tok = "<D-SEC>"
+        self.e_section_tok = "<E-SEC>"
+        self.f_section_tok = "<F-SEC>"
+        self.a_pr_section_tok = "<A'-SEC>"
+        self.b_pr_section_tok = "<B'-SEC>"
+        self.c_pr_section_tok = "<C'-SEC>"
+        self.d_pr_section_tok = "<D'-SEC>"
+        self.e_pr_section_tok = "<E'-SEC>"
+        self.f_pr_section_tok = "<F'-SEC>"
+        
+        self.prompt_tok = "<PROMPT>"
+        self.snip_tok = "<SNIP>"
+        self.cur_tok = "<CUR-SEC>"
+        self.seq_tok = "<SEQ>"
+
+        # These is needed in order to the tokenizer to work properly
+        # IMPORTANT: Make sure to call add_tokens_to_vocab after super().__init__()
+        # as I've done here. If you don't the index <-> token maps will be off.
+        # add_tokens_to_vocab does exactly what it says on the tin, adding the new tokens
+        # to the end of the current vocab.
+        self.add_tokens_to_vocab(
+            [self.prompt_tok, self.snip_tok, self.cur_tok, self.seq_tok]
+        )
+        self.add_tokens_to_vocab(
+            [self.a_section_tok, self.b_section_tok, self.c_section_tok, self.d_section_tok, self.e_section_tok, self.f_section_tok]
+        )
+        self.add_tokens_to_vocab(
+            [self.a_pr_section_tok, self.b_pr_section_tok, self.c_pr_section_tok, self.d_pr_section_tok, self.e_pr_section_tok, self.f_pr_section_tok]
+        )
+        
+        # Special tokens are ignored when de-tokenizing, so this is useful.
+        self.special_tokens.append(self.prompt_tok)
+        self.special_tokens.append(self.snip_tok)
+        self.special_tokens.append(self.cur_tok)
+        self.special_tokens.append(self.seq_tok)
+        
+        self.section_tokens = []  
+        self.section_tokens.append(self.a_section_tok)
+        self.section_tokens.append(self.b_section_tok)
+        self.section_tokens.append(self.c_section_tok)
+        self.section_tokens.append(self.d_section_tok)
+        self.section_tokens.append(self.e_section_tok)
+        self.section_tokens.append(self.f_section_tok)
+        self.section_tokens.append(self.a_pr_section_tok)
+        self.section_tokens.append(self.b_pr_section_tok)
+        self.section_tokens.append(self.c_pr_section_tok)
+        self.section_tokens.append(self.d_pr_section_tok)
+        self.section_tokens.append(self.e_pr_section_tok)
+        self.section_tokens.append(self.f_pr_section_tok)
+        
+        self.special_tokens += self.section_tokens
+
+    def tokenize(self, midi_dict: MidiDict, **kwargs):
+        # Check that section information is in metadata
+        if midi_dict.metadata.get("sections") is None:
+            # If not, tokenize like normal using AbsTokenizer
+            print("Section information missing")
+            return super().tokenize(midi_dict, **kwargs)
+
+        # Calculate sequence like normal using AbsTokenizer
+        # BE VERY CAREFUL HERE: AbsTokenizer.tokenizer gets rid of the leading silence!!
+        # e.g. first note in sequence will be at time=0ms by default. This was used during
+        # pre-training so it's best to leave it alone and not pass remove_preceding_silence=False
+        seq = super().tokenize(midi_dict, **kwargs)
+
+        # Add new tokens by doing some logic:
+        # TIP: Print out some sequences are make sure you understand the tokenization that AbsTokenizer is doing
+        new_seq = copy.deepcopy(seq)  # Important !
+        sections = midi_dict.metadata.get("sections") # [['A', 0], ['B', 500], ['A', 1000]]
+        relevant_tokens = ['piano', 'dur', 'onset']
+
+        for sec in sections:
+            note_count = 0
+            offset = 0
+
+            for tok in new_seq:
+                if tok[0] in relevant_tokens:
+                    if sec[1] == note_count:
+                        break
+                    else:
+                        note_count += 1
+                else:
+                    offset += 1
+
+            insert_idx = sec[1] + offset
+
+            for sec_tok in self.section_tokens:
+                if sec[0] == sec_tok[1]:
+                    new_seq.insert(insert_idx, sec_tok)
+                    break
+            
+            seq = new_seq
+            new_seq = copy.deepcopy(seq)
+                    
+        # NOTE: I have no idea if the above logic works
+        # TIP: Write a unit test in tests/test_tokenizers.py and call it quickly using the CLI:
+        # python -m unittest tests.test_tokenizers.TestNewTokenizer.test_tokenize
+
+        # TIP: In order to use the AbsTokenizer.detokenize function without modifications, you will
+        # need to make sure the new tokens aren't inserted in the middle of a note. If this is
+        # done correctly the new tokens will be ignored automatically when de-tokenizing (just like
+        # <D>)
+
+        return new_seq
+    
+    def finetuning_format(self, sec_seq: list):
+        form_tokens = []
+        for idx, token in enumerate(sec_seq):
+            if token in self.section_tokens:
+                form_tokens.append((token, idx))
+                
+        structure = [self.prompt_tok] + [token[0] for token in form_tokens]
+        
+        snippets = [self.snip_tok]
+        form_seen = []
+        for idx in range(len(form_tokens)):
+            if form_tokens[idx][0] in form_seen:
+                continue
+            
+            snippets.append(form_tokens[idx][0])
+            form_seen.append(form_tokens[idx][0])
+            if idx != len(form_tokens) - 1:
+                for tok_idx in range(form_tokens[idx][1] + 1, form_tokens[idx + 1][1]):
+                    snippets.append(sec_seq[tok_idx])
+            else:
+                for tok_idx in range(form_tokens[idx][1] + 1, len(sec_seq)):
+                    if sec_seq[tok_idx] != self.eos_tok:
+                        snippets.append(sec_seq[tok_idx])
+
+        start_idx = sec_seq.index(self.bos_tok) # in original seq
+        return structure + snippets + [self.cur_tok] + [form_tokens[0][0]] + [self.seq_tok] + sec_seq[start_idx:]
+        
+            
+    # Uses detokenize automatically using AbsTokenizer
+    def detokenize(self, midi_dict: MidiDict, **kwargs):
+        return super().detokenize(midi_dict, **kwargs)
+    
+    def export_data_aug(self):
+        return []
+    
+    def split(self, seq: list, seq_len: int):
+        seq = self.finetuning_format(seq)
+        sub_seq = seq[:seq_len]
+        sub_seq += [self.pad_tok] * (seq_len - len(sub_seq))
+        return [sub_seq]
 
 
 # class LMTokenizer(AbsTokenizer):
@@ -1770,3 +1929,4 @@ class RelTokenizer(Tokenizer):
             self.export_aug_fn_concat(aug_fn=chord_mixup),
             unk_tok=self.unk_tok,
         )
+

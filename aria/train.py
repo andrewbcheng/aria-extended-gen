@@ -23,6 +23,7 @@ from aria.tokenizer import (
     AbsTokenizer,
     RelTokenizer,
     SeparatedAbsTokenizer,
+    SecTokenizer,
 )
 from aria.data.datasets import (
     TrainingDataset,
@@ -541,6 +542,8 @@ def resume_train(
         tokenizer = SeparatedAbsTokenizer(return_tensors=True)
     elif tokenizer_name == "rel":
         tokenizer = RelTokenizer(return_tensors=True)
+    elif tokenizer_name == "sec_tokenizer":
+        tokenizer = SecTokenizer(return_tensors=True)
     else:
         raise Exception("Invalid tokenizer name")
 
@@ -660,6 +663,8 @@ def train(
         tokenizer = SeparatedAbsTokenizer(return_tensors=True)
     elif tokenizer_name == "rel":
         tokenizer = RelTokenizer(return_tensors=True)
+    elif tokenizer_name == "sec_tokenizer":
+        tokenizer = SecTokenizer(return_tensors=True)
     else:
         raise Exception("Invalid tokenizer name")
 

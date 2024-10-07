@@ -20,7 +20,7 @@ from collections import defaultdict
 from multiprocessing import Pool, get_start_method
 
 from aria.config import load_config
-from aria.tokenizer import Tokenizer, SeparatedAbsTokenizer
+from aria.tokenizer import Tokenizer, SeparatedAbsTokenizer, SecTokenizer
 from aria.data.midi import MidiDict, get_test_fn, get_duration_ms
 
 
@@ -1127,10 +1127,10 @@ def _get_mixed_dataset(
 class FinetuningDataset(TrainingDataset):
     """Torch dataset object yielding sequences formatted for fine-tuning."""
 
-    def __init__(self, dir_path: str, tokenizer: SeparatedAbsTokenizer):
+    def __init__(self, dir_path: str, tokenizer: SecTokenizer):
         super().__init__(tokenizer=tokenizer)
 
-        assert tokenizer.name == "separated_abs", "invalid tokenizer"
+        assert tokenizer.name == "sec_tokenizer", "invalid tokenizer"
         self.dir_path = dir_path
         self.epoch_files = self._get_epoch_files(dir_path)
         self.curr_epoch = 0
@@ -1141,16 +1141,16 @@ class FinetuningDataset(TrainingDataset):
 
     def get_loss_mask(self, tokenized_seq: list):
         mask = [True] * len(tokenized_seq)
-        inside_inst = False
+        inside_s = False
 
         for idx, token in enumerate(tokenized_seq):
-            if token == self.tokenizer.inst_start_tok:
+            if token == self.tokenizer.bos_tok:
                 mask[idx] = False
-                inside_inst = True
-            elif token == self.tokenizer.inst_end_tok:
+                inside_s = True
+            elif token == self.tokenizer.eos_tok:
                 mask[idx] = False
-                inside_inst = False
-            elif inside_inst:
+                inside_s = False
+            elif inside_s:
                 mask[idx] = False
 
         return torch.tensor(mask, dtype=torch.bool)
@@ -1178,6 +1178,12 @@ class FinetuningDataset(TrainingDataset):
                 )
 
                 _idx = 0
+                # for entry in reservoir(get_seqs(tokenizer, _midi_dataset), 10):
+                #     writer.write(tokenizer.finetuning_format(entry))
+
+                #     _idx += 1
+                #     if _idx % 250 == 0:
+                #         logger.info(f"Finished processing {_idx}")
                 for entry in reservoir(get_seqs(tokenizer, _midi_dataset), 10):
                     for _entry in tokenizer.split(entry, max_seq_len):
                         writer.write(_entry)
@@ -1190,8 +1196,6 @@ class FinetuningDataset(TrainingDataset):
         assert max_seq_len > 0, "max_seq_len must be greater than 0"
         assert num_epochs > 0, "num_epochs must be greater than 0"
         assert os.path.isfile(clean_dataset_path), "file not found"
-        for __path in noisy_dataset_paths:
-            assert os.path.isfile(__path), "file not found"
         if get_start_method() == "spawn":
             logger.warning(
                 'The current multiprocessing start method is "spawn", this '
@@ -1219,18 +1223,14 @@ class FinetuningDataset(TrainingDataset):
         )
 
         clean_dataset = MidiDataset.load(clean_dataset_path)
-        noisy_datasets = [
-            MidiDataset.load(_path) for _path in noisy_dataset_paths
-        ]
 
         for idx in range(num_epochs):
             logger.info(f"Building epoch {idx}/{num_epochs - 1}...")
 
             # Reload the combined dataset for each epoch
-            combined_dataset = _get_mixed_dataset(clean_dataset, noisy_datasets)
             _build_epoch(
                 _save_path=os.path.join(save_dir, f"epoch{idx}.jsonl"),
-                _midi_dataset=combined_dataset,
+                _midi_dataset=clean_dataset,
             )
 
         logger.info(f"Finished building, saved FinetuningDataset to {save_dir}")

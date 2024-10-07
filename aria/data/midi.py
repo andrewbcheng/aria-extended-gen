@@ -787,6 +787,25 @@ def meta_listening_model(mid: mido.MidiFile, msg_data: dict, tag_names: list):
 def meta_abs_path(mid: mido.MidiFile, msg_data: dict):
     return {"abs_path": str(pathlib.Path(mid.filename).absolute())}
 
+def meta_extract_sections(mid: mido.MidiFile, msg_data: dict):
+    file_name = str(mid.filename)
+    print(file_name)
+    second_half = file_name.split('_')[1]
+    print(second_half)
+    file_num = second_half.split('.')[0]
+    labels_path = "../samples/labels_" + file_num + ".txt"
+    print(labels_path)
+
+    with open(labels_path, "r") as f:
+        line = f.readline().strip()
+
+    sections = [] # [(A, 0), (B, 500), (A, 1000)]
+    sections.append((line[0], 0)) # first section
+    for idx in range(1, len(line)):
+        if line[idx] != line[idx - 1]:
+            sections.append((line[idx], idx))
+
+    return {"sections": sections}
 
 def get_metadata_fn(metadata_proc_name: str):
     # Add additional test_names to this inventory
@@ -797,6 +816,7 @@ def get_metadata_fn(metadata_proc_name: str):
         "maestro_json": meta_maestro_json,
         "listening_model": meta_listening_model,
         "abs_path": meta_abs_path,
+        "sections": meta_extract_sections,
     }
 
     fn = name_to_fn.get(metadata_proc_name, None)

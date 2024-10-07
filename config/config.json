@@ -93,6 +93,10 @@
                 "abs_path": {
                     "run": true,
                     "args": {}
+                },
+                "sections": {
+                    "run": true,
+                    "args": {}
                 }
             },
             "manual": {
