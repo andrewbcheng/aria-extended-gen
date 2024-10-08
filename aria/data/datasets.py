@@ -20,7 +20,7 @@ from collections import defaultdict
 from multiprocessing import Pool, get_start_method
 
 from aria.config import load_config
-from aria.tokenizer import Tokenizer, SeparatedAbsTokenizer, SecTokenizer
+from aria.tokenizer import Tokenizer, SecTokenizer
 from aria.data.midi import MidiDict, get_test_fn, get_duration_ms
 
 

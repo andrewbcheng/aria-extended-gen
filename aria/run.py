@@ -311,18 +311,7 @@ def _parse_midi_dataset_args():
     return argp.parse_args(sys.argv[2:])
 
 
-def build_finetune_dataset(args):
-    from aria.tokenizer import SecTokenizer
-    from aria.data.datasets import FinetuningDataset
-    tokenizer = SecTokenizer()
-    dataset = FinetuningDataset.build(
-        tokenizer=tokenizer,
-        save_dir=args.save_dir,
-        max_seq_len=args.l,
-        num_epochs=args.e,
-        clean_dataset_path=args.clean_load_path,
-        noisy_dataset_paths=args.noisy_load_paths,
-    )
+
 
 def build_midi_dataset(args):
     """Entrypoint for building MidiDatasets from a directory"""
@@ -398,10 +387,10 @@ def _parse_finetune_dataset_args():
 
 
 def build_finetune_dataset(args):
-    from aria.tokenizer import SeparatedAbsTokenizer
+    from aria.tokenizer import SecTokenizer
     from aria.data.datasets import FinetuningDataset
 
-    tokenizer = SeparatedAbsTokenizer()
+    tokenizer = SecTokenizer()
     dataset = FinetuningDataset.build(
         tokenizer=tokenizer,
         save_dir=args.save_dir,
