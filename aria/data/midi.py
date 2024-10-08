@@ -793,7 +793,7 @@ def meta_extract_sections(mid: mido.MidiFile, msg_data: dict):
     #second_half = file_name.split('_')[1]
     #print(second_half)
     #file_num = second_half.split('.')[0]
-    labels_path = "../synth_data/samples_0/" + file_name.split('/')[2].split('_')[0] + "_style.txt"
+    labels_path = "synth_data/samples_0/" + file_name.split('/')[2].split('_')[0] + "_style.txt"
     print("reading labels for", file_name, "from", labels_path)
 
     with open(labels_path, "r") as f:
