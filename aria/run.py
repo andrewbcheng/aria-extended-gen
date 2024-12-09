@@ -229,6 +229,46 @@ def sample(args):
             generated[section] = results # [A1_tokens, ...]
         final_results.append(results) # [[A1_tokens, ...], [B1_tokens, ...], [A1_tokens, ...]]
     
+    total_tokens_per_var = [0 for _ in range(num_variations)]
+    token_labels = [[] for _ in range(num_variations)] # [[# A1 + # B1 + # A1], ...]
+    for idx_section, section in enumerate(final_results): # [A1_tokens, ...]
+        if idx_section == 0: # grab original ending ticks
+            ending_ticks = [0 for _ in range(num_variations)] # [A1_ending_ticks, ...]
+            final_midi_dicts = [] # [A1_mididict + B1_mididict (tick-modified) + A1_mididict (tick-modified), ...]
+            
+            for idx_seq, seq in enumerate(section):
+                res_midi_dict = tokenizer.detokenize(seq) # A1_mididict
+                final_midi_dicts.append(res_midi_dict) # [A1_mididict, ...]
+                ending_ticks[idx_seq] = res_midi_dict.note_msgs[-1]["data"]["end"] + 2000
+
+                for msg in res_midi_dict.note_msgs: # going through every note in the midi dict instead of tokens used to create the midi dict
+                    token_labels[idx_seq].append(form[idx_section])
+                    token_labels[idx_seq].append(form[idx_section])
+                    token_labels[idx_seq].append(form[idx_section])
+                    total_tokens_per_var[idx_seq] += 3
+        
+        else: # modifying current and provide new ending ticks for next iteration
+            for idx_seq, seq in enumerate(section):
+                res_midi_dict = tokenizer.detokenize(seq) # B1_mididict
+                
+                for msg in res_midi_dict.note_msgs: # [A1_mididict + B1_mididict (tick-modified), ...]
+                    adjusted_note_msg = copy.deepcopy(msg)
+                    adjusted_note_msg["tick"] += ending_ticks[idx_seq]
+                    adjusted_note_msg["data"]["start"] += ending_ticks[idx_seq]
+                    adjusted_note_msg["data"]["end"] += ending_ticks[idx_seq]
+                    
+                    final_midi_dicts[idx_seq].note_msgs.append(adjusted_note_msg) 
+
+                    token_labels[idx_seq].append(form[idx_section]) #add token labels here instead
+                    token_labels[idx_seq].append(form[idx_section])
+                    token_labels[idx_seq].append(form[idx_section])
+                    total_tokens_per_var[idx_seq] += 3
+            
+            for idx_seq, seq in enumerate(final_midi_dicts): # ending tick of last note of B1_mididict (tick-modified)
+                ending_ticks[idx_seq] = seq.note_msgs[-1]["data"]["end"] + 2000
+
+    #old code below (now counting using mididict directly, see above)
+    '''
     token_labels = [[] for _ in range(num_variations)] # [[# A1 + # B1 + # A1], ...]
     for idx_section, section in enumerate(final_results): # [A1_tokens, ...]
         if idx_section == 0: # grab original ending ticks
@@ -263,17 +303,35 @@ def sample(args):
             note_tokens = [tok for tok in rm_metadata if tok[0] in ['piano', 'onset', 'dur']] #count tokens correctly, ignore INST tokens
             for _ in range(len(note_tokens)):
                 token_labels[idx_seq].append(form[idx_section])
+        '''
 
-    samples_dir = os.path.join(os.path.dirname(__file__), "..", "synth_data/samples_0")
+    form_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples")
+    if os.path.isdir(form_dir) is False:
+        os.mkdir(form_dir)
+
+    samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples/samples_0")
     if os.path.isdir(samples_dir) is False:
         os.mkdir(samples_dir)
     else:
         sample_num = 0
         while os.path.isdir(samples_dir):
             sample_num += 1
-            samples_dir = os.path.join(os.path.dirname(__file__), "..", "synth_data/samples_") + str(sample_num)
+            samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples/samples_") + str(sample_num)
         os.mkdir(samples_dir)
-            
+    
+    for idx, combined_midi_dict in enumerate(final_midi_dicts):
+        #if len(token_labels[idx]) == total_tokens_per_var[idx]: #only write this variation to files if token label len == number of note tokens
+        res_midi = combined_midi_dict.to_midi()
+        res_midi.save(f"{samples_dir}/{idx + 1}_midi.mid")
+        output_file = os.path.join(samples_dir, f"{idx + 1}_style.txt")
+        with open(output_file, 'w') as file:
+            for tok in token_labels[idx]:
+                file.write(tok)
+
+    print(f"Results saved to {samples_dir}")
+
+    #old code below (now writing midi and txt at same time, see above)
+    '''
     for idx, token_label in enumerate(token_labels): # [A1 + # B1 + # A1] 
         output_file = os.path.join(samples_dir, f"{idx + 1}_style.txt")
         with open(output_file, 'w') as file:
@@ -287,6 +345,7 @@ def sample(args):
         res_midi.save(f"{samples_dir}/{idx + 1}_midi.mid")
 
     print(f"Results saved to {samples_dir}")
+    '''
 
 
 def _parse_midi_dataset_args():
