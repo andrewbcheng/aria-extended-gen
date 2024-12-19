@@ -23,10 +23,14 @@ save_dir = os.path.join(os.path.dirname(__file__), f"synth_data/transition_sampl
 os.makedirs(save_dir, exist_ok=True)
 
 for i in transition_pts:
-    start_idx = max(i - 100, 0)
-    end_idx = min(i + 100, len(seq))
+    start_idx = max(i - 50, 0)
+    end_idx = min(i + 50, len(seq))
+    while seq[start_idx][0] != 'piano':
+        start_idx += 1
+    while seq[end_idx][0] != 'dur':
+        end_idx -= 1
+    transition_area_dict = tokenizer.detokenize(seq[start_idx:end_idx])
     print("seq for ", i, ":", seq[start_idx:end_idx])
-    transition_area = tokenizer.detokenize(seq[start_idx:end_idx]).to_midi()
-    transition_area.save(f"{save_dir}/tok{i}.mid")
+    transition_area_dict.to_midi().save(f"{save_dir}/tok{i}.mid")
 
 print("results saved to ", save_dir)
