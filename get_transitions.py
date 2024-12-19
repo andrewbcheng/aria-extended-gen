@@ -6,10 +6,10 @@ form_folder = input("enter form folder: ")
 sample_num = input("enter sample num: ")
 
 tokenizer = AbsTokenizer()
-midi_dict = MidiDict.from_midi(f"/project/jonmay_1426/spangher/old-dir/music-form-structure-modeling/aria-extended-gen/synth_data/{form_folder}_samples/{sample_num}_midi.mid")
+midi_dict = MidiDict.from_midi(f"/project/jonmay_1426/spangher/old-dir/music-form-structure-modeling/aria-extended-gen/synth_data/{form_folder}_samples/samples_{sample_num}/1_midi.mid")
 seq = tokenizer.tokenize(midi_dict)
 
-with open(f"/project/jonmay_1426/spangher/old-dir/music-form-structure-modeling/aria-extended-gen/synth_data/{form_folder}_samples/{sample_num}_style.txt", 'r') as file:
+with open(f"/project/jonmay_1426/spangher/old-dir/music-form-structure-modeling/aria-extended-gen/synth_data/{form_folder}_samples/samples_{sample_num}/1_style.txt", 'r') as file:
     content = file.read()
 
 transition_pts = []
