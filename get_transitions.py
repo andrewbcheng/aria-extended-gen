@@ -15,10 +15,6 @@ tokenizer = AbsTokenizer()
 midi_dict = MidiDict.from_midi(f"/project/jonmay_1426/spangher/old-dir/music-form-structure-modeling/aria-extended-gen/synth_data/{form_folder}_samples/samples_{sample_num}/1_midi.mid")
 seq = tokenizer.tokenize(midi_dict)
 
-print("seq: ", seq)
-
-prefix = seq[0]
-
 #get transition points
 transition_pts = []
 for i in range(1, len(content)):
@@ -35,8 +31,8 @@ for i in transition_pts:
         start_idx += 1
     while seq[end_idx][0] != 'dur':
         end_idx -= 1
-    transition_area_dict = tokenizer.detokenize(prefix + seq[start_idx : end_idx + 1])
-    print("seq for ", i, ":", prefix + seq[start_idx : end_idx + 1])
+    print("seq for ", i, ":", seq[0:2] + seq[start_idx : end_idx + 1] + seq[-1:])
+    transition_area_dict = tokenizer.detokenize(seq[0:2] + seq[start_idx : end_idx + 1] + seq[-1:])
     transition_area_dict.to_midi().save(f"{save_dir}/tok{i}.mid")
 
 print("results saved to ", save_dir)
