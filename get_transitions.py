@@ -17,18 +17,7 @@ seq = tokenizer.tokenize(midi_dict)
 
 print("seq: ", seq)
 
-#get metadata, <S> ... <S>
-metadata = []
-in_metadata = False
-for i in range(0, len(seq)):
-    if not in_metadata and seq[i] == "<S>":
-        in_metadata = True
-    elif in_metadata and seq[i] == "<S>":
-        in_metadata = False
-    if in_metadata:
-        metadata.append(seq[i])
-
-print("metadata: ", metadata)
+prefix = seq[0]
 
 #get transition points
 transition_pts = []
@@ -46,8 +35,8 @@ for i in transition_pts:
         start_idx += 1
     while seq[end_idx][0] != 'dur':
         end_idx -= 1
-    transition_area_dict = tokenizer.detokenize(metadata + seq[start_idx : end_idx + 1])
-    print("seq for ", i, ":", metadata + seq[start_idx : end_idx + 1])
+    transition_area_dict = tokenizer.detokenize(prefix + seq[start_idx : end_idx + 1])
+    print("seq for ", i, ":", prefix + seq[start_idx : end_idx + 1])
     transition_area_dict.to_midi().save(f"{save_dir}/tok{i}.mid")
 
 print("results saved to ", save_dir)
