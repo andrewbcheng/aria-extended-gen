@@ -305,18 +305,18 @@ def sample(args):
                 token_labels[idx_seq].append(form[idx_section])
         '''
 
-    form_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples")
+    form_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data_no_force_end/{form}_samples")
     if os.path.isdir(form_dir) is False:
         os.mkdir(form_dir)
 
-    samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples/samples_0")
+    samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data_no_force_end/{form}_samples/samples_0")
     if os.path.isdir(samples_dir) is False:
         os.mkdir(samples_dir)
     else:
         sample_num = 0
         while os.path.isdir(samples_dir):
             sample_num += 1
-            samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data/{form}_samples/samples_") + str(sample_num)
+            samples_dir = os.path.join(os.path.dirname(__file__), "..", f"synth_data_no_force_end/{form}_samples/samples_") + str(sample_num)
         os.mkdir(samples_dir)
     
     for idx, combined_midi_dict in enumerate(final_midi_dicts):
