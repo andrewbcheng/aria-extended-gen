@@ -221,7 +221,7 @@ def sample(args):
                 tokenizer=tokenizer,
                 prompts=prompts,
                 max_new_tokens=max_new_tokens,
-                force_end=True,
+                force_end=False,
                 temperature=args.temp,
                 top_p=args.top_p,
                 compile=args.compile,
