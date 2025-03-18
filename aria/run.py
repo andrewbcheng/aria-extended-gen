@@ -241,7 +241,7 @@ def sample(args):
                 final_midi_dicts.append(res_midi_dict) # [A1_mididict, ...]
                 ending_ticks[idx_seq] = res_midi_dict.note_msgs[-1]["data"]["end"] #+ 2000
 
-                for msg in res_midi_dict:#.note_msgs: # going through every note in the midi dict instead of tokens used to create the midi dict
+                for msg in res_midi_dict:# going through every note in the midi dict instead of tokens used to create the midi dict
                     token_labels[idx_seq].append(form[idx_section])
                     token_labels[idx_seq].append(form[idx_section])
                     token_labels[idx_seq].append(form[idx_section])
@@ -251,7 +251,7 @@ def sample(args):
             for idx_seq, seq in enumerate(section):
                 res_midi_dict = tokenizer.detokenize(seq) # B1_mididict
                 
-                for msg in res_midi_dict:#.note_msgs: # [A1_mididict + B1_mididict (tick-modified), ...]
+                for msg in res_midi_dict:# [A1_mididict + B1_mididict (tick-modified), ...]
                     adjusted_note_msg = copy.deepcopy(msg)
                     adjusted_note_msg["tick"] += ending_ticks[idx_seq]
                     adjusted_note_msg["data"]["start"] += ending_ticks[idx_seq]
